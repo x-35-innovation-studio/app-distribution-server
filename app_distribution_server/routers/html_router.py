@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Request, Response
+from fastapi import HTTPException as FastApiHTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app_distribution_server.build_info import (
     Platform,
@@ -9,9 +11,6 @@ from app_distribution_server.config import (
     APP_TITLE,
     LOGO_URL,
     get_absolute_url,
-)
-from app_distribution_server.errors import (
-    UserError,
 )
 from app_distribution_server.qrcode import get_qr_code_svg
 from app_distribution_server.storage import (
@@ -58,14 +57,14 @@ async def render_get_item_installation_page(
 
 async def render_error_page(
     request: Request,
-    user_error: UserError,
+    user_error: FastApiHTTPException | StarletteHTTPException,
 ) -> Response:
     return templates.TemplateResponse(
         request=request,
-        status_code=user_error.STATUS_CODE,
+        status_code=user_error.status_code,
         name="error.jinja.html",
         context={
-            "page_title": user_error.ERROR_MESSAGE,
-            "error_message": f"{user_error.STATUS_CODE} - {user_error.ERROR_MESSAGE}",
+            "page_title": user_error.detail,
+            "error_message": f"{user_error.status_code} - {user_error.detail}",
         },
     )

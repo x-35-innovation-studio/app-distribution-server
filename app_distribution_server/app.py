@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Response
+from copy import copy
+
+from fastapi import APIRouter, FastAPI, Response
 from fastapi import HTTPException as FastApiHTTPException
 from fastapi.requests import Request
 from fastapi.responses import PlainTextResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -25,9 +28,25 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+def add_head_routes(router: APIRouter) -> APIRouter:
+    """
+    Creates HEAD routes for all the GET routes in the given router.
+    The route is handled by the same handler.
+    Waiting on: https://github.com/fastapi/fastapi/issues/1773
+    """
+    for route in router.routes:
+        if isinstance(route, APIRoute) and "GET" in route.methods:
+            new_route = copy(route)
+            new_route.methods = {"HEAD"}
+            new_route.include_in_schema = False
+            router.routes.append(new_route)
+
+    return router
+
+
 app.include_router(api_router.router)
-app.include_router(html_router.router)
-app.include_router(app_files_router.router)
+app.include_router(add_head_routes(html_router.router))
+app.include_router(add_head_routes(app_files_router.router))
 app.include_router(health_router.router)
 
 

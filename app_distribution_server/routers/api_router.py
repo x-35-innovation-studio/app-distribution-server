@@ -137,7 +137,7 @@ router.delete(
 )
 def api_get_latest_upload_by_bundle_id(
     bundle_id: str = Path(
-        pattern=r"^[a-zA-Z0-9\.\-]{1,256}$",
+        pattern=r"^[a-zA-Z0-9\.\-\_]{1,256}$",
     ),
 ) -> BuildInfo:
     upload_id = get_latest_upload_id_by_bundle_id(bundle_id)

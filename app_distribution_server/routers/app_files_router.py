@@ -1,4 +1,5 @@
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse
@@ -67,9 +68,13 @@ async def get_app_file(
         build_info.created_at.strftime("%Y-%m-%d_%H-%M-%S") if build_info.created_at else ""
     )
     file_name = f"{build_info.app_title} {build_info.bundle_version}{created_at_prefix}"
+    
+    # Encode the filename for HTTP headers
+    safe_filename = quote(file_name) 
+    content_disposition = f"attachment; filename*=UTF-8''{safe_filename}.{file_type}"
 
     return Response(
         content=app_file_content,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={file_name}.{file_type}"},
+        headers={"Content-Disposition": content_disposition},
     )

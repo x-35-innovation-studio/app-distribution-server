@@ -68,9 +68,9 @@ async def get_app_file(
         build_info.created_at.strftime("%Y-%m-%d_%H-%M-%S") if build_info.created_at else ""
     )
     file_name = f"{build_info.app_title} {build_info.bundle_version}{created_at_prefix}"
-    
+
     # Encode the filename for HTTP headers
-    safe_filename = quote(file_name) 
+    safe_filename = quote(file_name)
     content_disposition = f"attachment; filename*=UTF-8''{safe_filename}.{file_type}"
 
     return Response(

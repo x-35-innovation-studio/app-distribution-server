@@ -1,8 +1,10 @@
 import secrets
+import datetime
 
-from fastapi import APIRouter, Depends, File, Path, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile, Form
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.security import APIKeyHeader
+from pydantic import BaseModel
 
 from app_distribution_server.build_info import (
     BuildInfo,
@@ -25,6 +27,13 @@ from app_distribution_server.storage import (
     get_upload_asserted_platform,
     load_build_info,
     save_upload,
+    list_all_uploaded_files,
+    add_tag,
+    get_all_tags,
+    tag_exists,
+    update_tag as storage_update_tag,
+    save_upload_tags,
+    load_upload_tags,
 )
 
 x_auth_token_dependency = APIKeyHeader(name="X-Auth-Token")
@@ -39,12 +48,12 @@ def x_auth_token_validator(
 
 router = APIRouter(
     tags=["API"],
-    dependencies=[Depends(x_auth_token_validator)],
 )
 
 
 def _upload_app(
     app_file: UploadFile,
+    tags: list[str] = None
 ) -> BuildInfo:
     platform: Platform
 
@@ -53,22 +62,21 @@ def _upload_app(
 
     if app_file.filename.endswith(".ipa"):
         platform = Platform.ios
-
     elif app_file.filename.endswith(".apk"):
         platform = Platform.android
-
     else:
         raise InvalidFileTypeError()
 
     app_file_content = app_file.file.read()
-
     build_info = get_build_info(platform, app_file_content)
     upload_id = build_info.upload_id
 
     logger.debug(f"Starting upload of {upload_id!r}")
 
-    save_upload(build_info, app_file_content)
+    # Ensure tags are set on build_info before saving
+    build_info.tags = tags or []
 
+    save_upload(build_info, app_file_content, build_info.tags)
     logger.info(f"Successfully uploaded {build_info.bundle_id!r} ({upload_id!r})")
 
     return build_info
@@ -91,9 +99,16 @@ _upload_route_kwargs = {
 @router.post("/upload", **_upload_route_kwargs)
 def _plaintext_post_upload(
     app_file: UploadFile = File(description="An `.ipa` or `.apk` build"),
+    tags: list[str] = Form(default=None, description="Optional list of tags to associate with this upload"),
 ) -> PlainTextResponse:
-    build_info = _upload_app(app_file)
-
+    valid_tags = []
+    if tags:
+        valid_tags = [t.strip() for t in tags if t.strip()]
+        all_tags = set(get_all_tags())
+        invalid_tags = [t for t in valid_tags if t not in all_tags]
+        if invalid_tags:
+            raise HTTPException(status_code=400, detail=f"Invalid tags: {invalid_tags}")
+    build_info = _upload_app(app_file, valid_tags)
     return PlainTextResponse(
         content=get_absolute_url(f"/get/{build_info.upload_id}"),
     )
@@ -102,8 +117,16 @@ def _plaintext_post_upload(
 @router.post("/api/upload", **_upload_route_kwargs)
 def _json_api_post_upload(
     app_file: UploadFile = File(description="An `.ipa` or `.apk` build"),
+    tags: list[str] = Form(default=None, description="Optional list of tags to associate with this upload"),
 ) -> BuildInfo:
-    return _upload_app(app_file)
+    valid_tags = []
+    if tags:
+        valid_tags = [t.strip() for t in tags if t.strip()]
+        all_tags = set(get_all_tags())
+        invalid_tags = [t for t in valid_tags if t not in all_tags]
+        if invalid_tags:
+            raise HTTPException(status_code=400, detail=f"Invalid tags: {invalid_tags}")
+    return _upload_app(app_file, valid_tags)
 
 
 async def _api_delete_app_upload(
@@ -147,7 +170,6 @@ def api_get_latest_upload_by_bundle_id(
 
     get_upload_asserted_platform(upload_id)
     return load_build_info(upload_id)
-
 
 def serialize(obj):
     if isinstance(obj, dict):
@@ -955,3 +977,5 @@ def home():
     </body>
     </html>
     """
+
+

@@ -121,3 +121,5 @@ Built by [Significa](https://significa.co)
 
 [![significa's banner](https://github.com/significa/.github/blob/main/assets/significa-github-banner-small.png)](https://significa.co/)
 
+Customized by X-35 Innovation Studio
+

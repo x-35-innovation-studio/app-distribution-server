@@ -1,33 +1,63 @@
 {% extends "base.jinja.html" %}
+{% from "_icons.jinja.html" import icon %}
+
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow" />
+{% endblock %}
 
 {% block content %}
-  <main>
-    <h1>{{ build_info.app_title }}</h1>
-    <pre>{{ build_info.platform.display_name }}</pre>
-    <pre>{{ build_info.bundle_version }}</pre>
-    <pre>{{ build_info.human_file_size }}</pre>
-    {% if build_info.created_at %}
-      <time datetime="{{ build_info.created_at }}">{{ build_info.created_at }}</time>
-    {% endif %}
+  <main class="center-page">
+    <section class="card install-card">
+      <div class="app-avatar lg" data-avatar="{{ build_info.app_title }}">{{ build_info.app_title[:1] | upper }}</div>
+      <h1>{{ build_info.app_title }}</h1>
 
-    <div class="card">
-      <div class="qr">
-        {{qr_code_svg|safe}}
+      <div class="install-meta">
+        <span class="badge badge-{{ build_info.platform.value }}">
+          {{ icon("smartphone") }} {{ build_info.platform.display_name }}
+        </span>
+        <span class="badge">v{{ build_info.bundle_version }}</span>
+        <span class="badge">{{ build_info.human_file_size }}</span>
       </div>
 
-      <div class="install">
-        <a href="{{install_url}}">Install</a>
+      <div class="qr" aria-label="QR code for installing this build">
+        {{ qr_code_svg | safe }}
       </div>
-    </div>
+      <p class="qr-caption">Scan with your phone's camera to install</p>
+
+      <a class="btn btn-primary btn-lg btn-block" href="{{ install_url }}">
+        {{ icon("download") }} Install on {{ build_info.platform.display_name }}
+      </a>
+
+      {% if build_info.platform.value == "ios" %}
+        <p class="install-hint">
+          Open this page in Safari on an iOS device that is registered for this build.
+        </p>
+      {% else %}
+        <p class="install-hint">
+          You may need to allow installs from unknown sources on your Android device.
+        </p>
+      {% endif %}
+
+      <dl class="details">
+        <div><dt>Bundle ID</dt><dd>{{ build_info.bundle_id }}</dd></div>
+        {% if build_info.created_at %}
+          <div>
+            <dt>Uploaded</dt>
+            <dd><time datetime="{{ build_info.created_at.isoformat() }}">{{ build_info.created_at.strftime("%Y-%m-%d %H:%M UTC") }}</time></dd>
+          </div>
+        {% endif %}
+      </dl>
+    </section>
 
     {% if logo_url %}
-      <div class="logo">
-          <img src="{{logo_url}}" alt="logo" />
+      <div class="footer-logo">
+        <img src="{{ logo_url }}" alt="logo" />
       </div>
     {% endif %}
+
+    <footer class="page-footer">
+      Powered by
+      <a href="https://github.com/significa/app-distribution-server" rel="noopener noreferrer">significa/app-distribution-server</a>
+    </footer>
   </main>
-  <footer>
-    Powered by
-    <a href="https://github.com/significa/app-distribution-server">significa/app-distribution-server</a>.
-  </footer>
 {% endblock %}

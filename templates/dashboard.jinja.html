@@ -1,0 +1,184 @@
+{% extends "base.jinja.html" %}
+{% from "_icons.jinja.html" import icon %}
+
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow" />
+{% endblock %}
+
+{% block head %}
+    <script src="/static/js/dashboard.js?v={{ app_version | urlencode }}" defer></script>
+{% endblock %}
+
+{% block body_attrs %} data-max-upload-mb="{{ max_upload_size_mb }}"{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">{{ icon("package") }}</span>
+        <span class="brand-name">{{ app_title }}</span>
+      </a>
+      <div class="topbar-actions">
+        <button class="btn" type="button" id="open-tags">
+          {{ icon("tag") }}<span class="btn-label">Tags</span>
+        </button>
+        <button class="btn btn-primary" type="button" id="open-upload">
+          {{ icon("upload") }}<span class="btn-label">Upload build</span>
+        </button>
+        <button class="btn btn-ghost btn-icon" type="button" id="logout" title="Sign out" aria-label="Sign out">
+          {{ icon("logout") }}
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1>Builds</h1>
+        <p>Every iOS and Android build uploaded to this server, newest first.</p>
+      </div>
+    </div>
+
+    <section class="stats" aria-label="Summary">
+      <div class="stat"><div class="stat-label">Total builds</div><div class="stat-value" id="stat-total">–</div></div>
+      <div class="stat"><div class="stat-label">iOS</div><div class="stat-value" id="stat-ios">–</div></div>
+      <div class="stat"><div class="stat-label">Android</div><div class="stat-value" id="stat-android">–</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div class="input-with-icon">
+          {{ icon("search") }}
+          <label for="search" class="sr-only">Search builds</label>
+          <input class="input" type="search" id="search" placeholder="Search by name, bundle ID or version" autocomplete="off" />
+        </div>
+        <div class="segmented" role="group" aria-label="Platform filter" id="platform-filter">
+          <button type="button" data-platform="" aria-pressed="true">All</button>
+          <button type="button" data-platform="ios" aria-pressed="false">iOS</button>
+          <button type="button" data-platform="android" aria-pressed="false">Android</button>
+        </div>
+      </div>
+
+      <div class="tag-filter" id="tag-filter" hidden>
+        <span class="label">Tags</span>
+        <div class="chip-row" id="tag-filter-chips"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="clear-tags" hidden>Clear</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="builds">
+          <thead>
+            <tr>
+              <th scope="col">App</th>
+              <th scope="col">Platform</th>
+              <th scope="col">Version</th>
+              <th scope="col">Size</th>
+              <th scope="col">Uploaded</th>
+              <th scope="col">Tags</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="builds-body"></tbody>
+        </table>
+      </div>
+
+      <div class="empty" id="empty-state" hidden>
+        <div class="empty-icon">{{ icon("package") }}</div>
+        <h3 id="empty-title">No builds yet</h3>
+        <p id="empty-text">Upload your first .ipa or .apk to get a shareable install page.</p>
+        <button class="btn btn-primary" type="button" id="empty-upload">{{ icon("upload") }} Upload build</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Upload dialog -->
+  <dialog class="modal" id="upload-dialog" aria-labelledby="upload-title">
+    <form id="upload-form" method="dialog" novalidate>
+      <div class="modal-header">
+        <h2 id="upload-title">Upload build</h2>
+        <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close">{{ icon("x") }}</button>
+      </div>
+      <div class="modal-body">
+        <label class="dropzone" id="dropzone">
+          {{ icon("upload") }}
+          <span><strong>Click to choose</strong> or drag a file here</span>
+          <span class="hint">.ipa or .apk, up to {{ max_upload_size_mb }} MB</span>
+          <input type="file" id="app-file" accept=".ipa,.apk" />
+        </label>
+        <div class="file-pill" id="file-pill" hidden>
+          {{ icon("package") }}
+          <span class="name" id="file-name"></span>
+          <span class="faint" id="file-size"></span>
+        </div>
+
+        <div class="field" style="margin-top: 18px; margin-bottom: 0">
+          <span class="label">Tags</span>
+          <div class="chip-row" id="upload-tag-chips"></div>
+          <span class="hint" id="upload-tags-empty" hidden>No tags yet. Create some from the Tags menu.</span>
+        </div>
+
+        <div class="progress" id="upload-progress" hidden><div></div></div>
+        <div class="alert" id="upload-msg" role="alert" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="upload-submit" disabled>{{ icon("upload") }} Upload</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Tags dialog -->
+  <dialog class="modal" id="tags-dialog" aria-labelledby="tags-title">
+    <div class="modal-header">
+      <h2 id="tags-title">Manage tags</h2>
+      <button type="button" class="btn btn-ghost btn-icon" data-close aria-label="Close">{{ icon("x") }}</button>
+    </div>
+    <div class="modal-body">
+      <form class="inline-form" id="tag-create-form" novalidate>
+        <label for="new-tag" class="sr-only">New tag name</label>
+        <input class="input" id="new-tag" maxlength="64" placeholder="New tag, e.g. staging" autocomplete="off" />
+        <button class="btn btn-primary" type="submit">Add</button>
+      </form>
+      <p class="hint" style="margin: 8px 0 0">Letters, numbers, spaces, dots, dashes and underscores. Max 64 characters.</p>
+      <div class="alert" id="tag-msg" role="alert" hidden></div>
+      <div class="tag-list" id="tag-list"></div>
+    </div>
+  </dialog>
+
+  <!-- Delete confirmation -->
+  <dialog class="modal" id="delete-dialog" aria-labelledby="delete-title">
+    <form method="dialog">
+      <div class="modal-header">
+        <h2 id="delete-title">Delete build?</h2>
+      </div>
+      <div class="modal-body">
+        <p style="margin: 0">
+          <strong id="delete-name"></strong> will be permanently removed and its install link will stop
+          working. This can't be undone.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn btn-primary" style="background: var(--danger); border-color: var(--danger)" value="confirm" id="delete-confirm">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <template id="icon-templates">
+    <span data-icon="external">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+    </span>
+    <span data-icon="copy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+    </span>
+    <span data-icon="trash">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </span>
+    <span data-icon="pencil">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+    </span>
+  </template>
+{% endblock %}

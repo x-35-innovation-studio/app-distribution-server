@@ -8,7 +8,7 @@ UPLOADS_SECRET_AUTH_TOKEN = os.getenv("UPLOADS_SECRET_AUTH_TOKEN")
 
 if not UPLOADS_SECRET_AUTH_TOKEN:
     UPLOADS_SECRET_AUTH_TOKEN = "secret"  # noqa: S105
-    logger.warn(
+    logger.warning(
         "SECURITY WARNING: Using default auth token!"
         " For security reasons override it with the 'UPLOADS_SECRET_AUTH_TOKEN' env var.",
     )
@@ -19,6 +19,13 @@ APP_TITLE = os.getenv("APP_TITLE") or "iOS/Android app distribution server"
 
 _raw_logo_url = os.getenv("LOGO_URL", "/static/logo.svg")
 LOGO_URL: str | None = None if _raw_logo_url.lower() in ["", "0", "false"] else _raw_logo_url
+
+
+try:
+    MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "2048"))
+except ValueError:
+    MAX_UPLOAD_SIZE_MB = 2048
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
 def get_absolute_url(path: str) -> str:

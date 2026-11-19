@@ -67,8 +67,12 @@ uploaded prior to v2.
 
 ## Configuration
 
-- `UPLOADS_SECRET_AUTH_TOKEN`: Token used to upload builds. **Don't forget to change it!**
-  Default: `secret`.
+- `UPLOADS_SECRET_AUTH_TOKEN`: Token used to upload, delete and list builds, manage tags and sign
+  in to the web dashboard. **Don't forget to change it!** Use a long random value, for example
+  `openssl rand -hex 32`. Default: `secret`.
+
+- `MAX_UPLOAD_SIZE_MB`: Maximum size of an uploaded `.ipa`/`.apk`, in megabytes. Larger uploads are
+  rejected with `413`. Default: `2048`.
 
 - `APP_BASE_URL`: The front-facing app URL for link generation.
   Defaults to `http://localhost:8000`.
@@ -89,6 +93,23 @@ uploaded prior to v2.
 
 - `APP_TITLE`: Defaults to `iOS/Android app distribution server`, use it to customise your page
   title.
+
+## Web dashboard
+
+Open `/` in a browser and sign in with your `UPLOADS_SECRET_AUTH_TOKEN` to browse, search, filter,
+upload and delete builds and to manage tags. Install pages (`/get/<upload_id>`) stay public, so
+anyone with the link can install the build.
+
+## Security notes
+
+- Every endpoint that changes data (upload, delete, tags) or lists builds requires the
+  `X-Auth-Token` header. Install pages and app downloads are public but use unguessable UUIDs.
+  `/api/bundle/<bundle_id>/latest_upload` is also public, so anyone who knows a bundle ID can find
+  its latest build.
+- Pages are served with a strict Content-Security-Policy (no inline scripts), `X-Frame-Options`,
+  `X-Content-Type-Options` and `Referrer-Policy` headers.
+- Serve the app over HTTPS (for example behind a reverse proxy). iOS OTA installs require it anyway,
+  and the auth token is sent in a header.
 
 ## Development
 

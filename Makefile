@@ -25,4 +25,4 @@ format: ## Format the code according to the standards
 
 lock-deps: ## Lock dependencies to requirements.txt
 	pip-compile --strip-extras requirements-dev.in > requirements-dev.txt
-	pip-compile --strip-extras requirements.in > requirements.txt
+	pip-compile --strip-extras --allow-unsafe requirements.in > requirements.txt

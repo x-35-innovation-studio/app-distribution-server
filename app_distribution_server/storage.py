@@ -1,5 +1,5 @@
-import json
 import datetime
+import json
 
 from fs import errors, open_fs, path
 
@@ -7,6 +7,7 @@ from app_distribution_server.build_info import BuildInfo, LegacyAppInfo, Platfor
 from app_distribution_server.config import STORAGE_URL
 from app_distribution_server.errors import NotFoundError
 from app_distribution_server.logger import logger
+from app_distribution_server.validation import is_valid_upload_id
 
 PLIST_FILE_NAME = "info.plist"
 BUILD_INFO_JSON_FILE_NAME = "build_info.json"
@@ -17,11 +18,21 @@ INDEXES_DIRECTORY = "_indexes"
 filesystem = open_fs(STORAGE_URL, create=True)
 
 
+def _assert_valid_upload_id(upload_id: str):
+    """
+    Defence in depth: upload IDs are used to build storage paths, so never let anything that
+    isn't a server generated UUID reach the filesystem (e.g. '_indexes', '..', 'a/b').
+    """
+    if not isinstance(upload_id, str) or not is_valid_upload_id(upload_id):
+        raise NotFoundError()
+
+
 def create_parent_directories(upload_id: str):
+    _assert_valid_upload_id(upload_id)
     filesystem.makedirs(upload_id, recreate=True)
 
 
-def save_upload(build_info: BuildInfo, app_file_content: bytes, tags: list[str] = None):
+def save_upload(build_info: BuildInfo, app_file_content: bytes, tags: list[str] | None = None):
     create_parent_directories(build_info.upload_id)
     save_build_info(build_info, tags)
     save_app_file(build_info, app_file_content)
@@ -29,6 +40,7 @@ def save_upload(build_info: BuildInfo, app_file_content: bytes, tags: list[str] 
 
 
 def get_upload_platform(upload_id: str) -> Platform | None:
+    _assert_valid_upload_id(upload_id)
     for platform in Platform:
         if filesystem.exists(path.join(upload_id, platform.app_file_name)):
             return platform
@@ -54,10 +66,12 @@ def get_upload_asserted_platform(
     raise NotFoundError()
 
 
-def save_build_info(build_info: BuildInfo, tags: list[str] = None):
+def save_build_info(build_info: BuildInfo, tags: list[str] | None = None):
     upload_id = build_info.upload_id
     filepath = f"{upload_id}/{BUILD_INFO_JSON_FILE_NAME}"
-    data = build_info.model_dump() if hasattr(build_info, "model_dump") else build_info.__dict__.copy()
+    data = (
+        build_info.model_dump() if hasattr(build_info, "model_dump") else build_info.__dict__.copy()
+    )
     if tags is not None:
         data["tags"] = sorted(tags)
     # Convert datetime fields to ISO format
@@ -68,6 +82,7 @@ def save_build_info(build_info: BuildInfo, tags: list[str] = None):
 
 
 def load_build_info(upload_id: str) -> BuildInfo:
+    _assert_valid_upload_id(upload_id)
     try:
         filepath = path.join(upload_id, BUILD_INFO_JSON_FILE_NAME)
         with filesystem.open(filepath, "r") as app_info_file:
@@ -133,6 +148,7 @@ def load_app_file(
 
 
 def delete_upload(upload_id: str):
+    _assert_valid_upload_id(upload_id)
     try:
         filesystem.removetree(upload_id)
         logger.info(f"Upload directory {upload_id!r} deleted successfully")
@@ -162,8 +178,11 @@ def get_latest_upload_id_by_bundle_id(bundle_id: str) -> str | None:
         return None
 
     with filesystem.open(filepath, "r") as file:
-        return file.readline().strip()
-    
+        upload_id = file.readline().strip()
+
+    return upload_id if is_valid_upload_id(upload_id) else None
+
+
 def list_all_uploaded_files():
     """
     Returns a list of all files uploaded so far, grouped by upload_id.
@@ -171,12 +190,14 @@ def list_all_uploaded_files():
     """
     uploads = {}
     for entry in filesystem.scandir("/"):
-        if entry.is_dir and not entry.name.startswith("_"):
+        if entry.is_dir and is_valid_upload_id(entry.name):
             upload_id = entry.name
             uploads[upload_id] = filesystem.listdir(upload_id)
     return uploads
 
+
 TAGS_FILE_PATH = "_indexes/tags.json"
+
 
 def load_tags() -> set[str]:
     if not filesystem.exists(TAGS_FILE_PATH):
@@ -188,10 +209,12 @@ def load_tags() -> set[str]:
         except Exception:
             return set()
 
+
 def save_tags(tags: set[str]):
     filesystem.makedirs(path.dirname(TAGS_FILE_PATH), recreate=True)
     with filesystem.open(TAGS_FILE_PATH, "w") as f:
         json.dump(sorted(tags), f)
+
 
 def add_tag(tag: str):
     tags = load_tags()
@@ -201,11 +224,14 @@ def add_tag(tag: str):
     save_tags(tags)
     return True
 
+
 def get_all_tags() -> list[str]:
     return sorted(load_tags())
 
+
 def tag_exists(tag: str) -> bool:
     return tag in load_tags()
+
 
 def update_tag(old_tag: str, new_tag: str):
     tags = load_tags()
@@ -214,17 +240,35 @@ def update_tag(old_tag: str, new_tag: str):
     tags.remove(old_tag)
     tags.add(new_tag)
     save_tags(tags)
+    _rename_tag_in_uploads(old_tag, new_tag)
     return True
+
+
+def _rename_tag_in_uploads(old_tag: str, new_tag: str):
+    for upload_id in list_all_uploaded_files():
+        try:
+            build_info = load_build_info(upload_id)
+        except Exception:
+            logger.warning(f"Could not rename tag on upload {upload_id!r}", exc_info=True)
+            continue
+        if old_tag in build_info.tags:
+            renamed = {new_tag if t == old_tag else t for t in build_info.tags}
+            save_build_info(build_info, sorted(renamed))
+
 
 UPLOAD_TAGS_DIR = "_indexes/upload_tags"
 
+
 def get_upload_tags_filepath(upload_id: str) -> str:
+    _assert_valid_upload_id(upload_id)
     return path.join(UPLOAD_TAGS_DIR, f"{upload_id}.json")
+
 
 def save_upload_tags(upload_id: str, tags: list[str]):
     filesystem.makedirs(path.dirname(get_upload_tags_filepath(upload_id)), recreate=True)
     with filesystem.open(get_upload_tags_filepath(upload_id), "w") as f:
         json.dump(sorted(tags), f)
+
 
 def load_upload_tags(upload_id: str) -> list[str]:
     filepath = get_upload_tags_filepath(upload_id)

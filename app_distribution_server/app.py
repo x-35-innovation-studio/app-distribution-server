@@ -17,6 +17,7 @@ from app_distribution_server.errors import (
     status_codes_to_default_exception_types,
 )
 from app_distribution_server.routers import api_router, app_files_router, health_router, html_router
+from app_distribution_server.security_headers import SecurityHeadersMiddleware
 
 app = FastAPI(
     title=APP_TITLE,
@@ -24,6 +25,8 @@ app = FastAPI(
     summary="Simple, self-hosted iOS/Android app distribution server.",
     description="[Source code, issues and documentation](https://github.com/significa/app-distribution-server)",
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -56,7 +59,10 @@ async def exception_handler(
     exception: FastApiHTTPException | StarletteHTTPException,
 ) -> Response:
     if request.url.path.startswith("/api/"):
-        return PlainTextResponse(content=exception.detail)
+        return PlainTextResponse(
+            content=str(exception.detail),
+            status_code=exception.status_code,
+        )
 
     return await html_router.render_error_page(request, exception)
 

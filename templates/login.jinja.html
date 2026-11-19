@@ -1,0 +1,53 @@
+{% extends "base.jinja.html" %}
+{% from "_icons.jinja.html" import icon %}
+
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow" />
+{% endblock %}
+
+{% block head %}
+    <script src="/static/js/login.js?v={{ app_version | urlencode }}" defer></script>
+{% endblock %}
+
+{% block content %}
+  <main class="center-page">
+    <section class="card">
+      <div class="card-logo">
+        <span class="brand-mark">{{ icon("package") }}</span>
+      </div>
+      <h1>Sign in</h1>
+      <p class="subtitle">Enter your upload token to manage builds on {{ app_title }}.</p>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="token">Auth token</label>
+          <div class="input-with-icon">
+            {{ icon("lock") }}
+            <input
+              class="input"
+              type="password"
+              id="token"
+              name="token"
+              required
+              autocomplete="current-password"
+              spellcheck="false"
+              placeholder="X-Auth-Token"
+              autofocus
+            />
+          </div>
+          <span class="hint">The value of <code>UPLOADS_SECRET_AUTH_TOKEN</code> on the server.</span>
+        </div>
+
+        <div class="field">
+          <label class="checkbox">
+            <input type="checkbox" id="remember" checked />
+            Keep me signed in on this device
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-submit">Sign in</button>
+        <div id="login-msg" class="alert" role="alert" hidden></div>
+      </form>
+    </section>
+  </main>
+{% endblock %}
